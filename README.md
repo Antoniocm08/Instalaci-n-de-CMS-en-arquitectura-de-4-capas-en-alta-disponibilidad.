@@ -35,9 +35,9 @@ Implementar una aplicación web denominada **Gestión de Usuarios** sobre una in
 
 ### Capa 2: BackEnd (Servidores Web + NFS + PHP-FPM)
 - **Máquinas:**
-  - `serverweb1TuNombre` → servidor web Nginx
-  - `serverweb2TuNombre` → servidor web Nginx
-  - `serverNFSTuNombre` → servidor NFS + motor PHP-FPM
+  - `serverweb1Antonio` → servidor web Nginx
+  - `serverweb2Antonio` → servidor web Nginx
+  - `serverNFSAntonio` → servidor NFS + motor PHP-FPM
 - **Funciones:**
   - Servidores web gestionan las peticiones distribuidas desde el balanceador.
   - Acceso a archivos compartidos por **NFS** desde `serverNFSTuAntonio`.
@@ -49,7 +49,7 @@ Implementar una aplicación web denominada **Gestión de Usuarios** sobre una in
 ---
 
 ### Capa 3: Balanceador de Base de Datos
-- **Máquina:** `proxyBBDDTuNombre`
+- **Máquina:** `proxyAntonio`
 - **Servicio:** `HAProxy`
 - **Función:**
   - Balancear las conexiones entre las aplicaciones web (capa 2) y el servidor de base de datos (capa 4).
@@ -58,7 +58,7 @@ Implementar una aplicación web denominada **Gestión de Usuarios** sobre una in
 ---
 
 ### Capa 4: Base de Datos
-- **Máquina:** `serverdatosTuNombre`
+- **Máquina:** `BaseDeDatos1Antonio/BaseDeDatos2Antonio`
 - **Servicio:** `MariaDB`
 - **Función:**
   - Almacenar toda la información de la aplicación **Gestión de Usuarios**.
@@ -94,5 +94,5 @@ Implementar una aplicación web denominada **Gestión de Usuarios** sobre una in
 
 ---
 
-## Esquema Resumido
+
 
