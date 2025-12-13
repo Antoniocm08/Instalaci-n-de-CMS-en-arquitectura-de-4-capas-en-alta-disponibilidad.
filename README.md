@@ -8,8 +8,17 @@
    - [Capa 4: Base de Datos](#capa-4-base-de-datos)
 3. [ Infraestructura visual](#infraestructura-visual)
 4. [Provisionamiento](#provisionamiento)
-5. [Herramientas Empleadas](#herramientas-empleadas)
-6. [Esquema Resumido](#esquema-resumido)
+   - [Vagrantfile](#vagrantfile)
+   - [Balanceador](#balanceador)
+   - [Base de datos 1](#base-de-datos-1)
+   - [Base de datos 2](#base-de-datos-2)
+   - [NFS](#nfs)
+   - [Proxy](#proxy)
+   - [Servidores webs](#servidores-webs)
+6. [Herramientas Empleadas](#herramientas-empleadas)
+7. [Pruebas](#pruebas)
+8. [Prueba con video](#prueba-con-video)
+9. [Conclusion](#conclusion)
 
 ---
 
@@ -248,10 +257,472 @@ systemctl restart nginx
 systemctl enable nginx
 echo "Balanceador de carga configurado correctamente."
 ```
+### Base de datos 1
+- Funciones principales:
+- Configuración básica de red y DNS
+- Instalación de MariaDB + Galera
+- Inicialización del clúster Galera (nodo primario)
+- Creación de base de datos y usuarios
+  
+```bash
+#!/bin/bash
+sleep 10
+
+# Configura servidores DNS públicos
+# Se sobrescribe resolv.conf 
+echo "nameserver 1.1.1.1" | sudo tee /etc/resolv.conf
+echo "nameserver 8.8.8.8" | sudo tee -a /etc/resolv.conf
+
+# Actualiza índices de paquetes sin mostrar demasiada salida (-qq)
+apt-get update -qq
+
+# Evita prompts interactivos durante la instalación y instala MariaDB Server y Galera
+DEBIAN_FRONTEND=noninteractive apt-get install -y mariadb-server mariadb-client galera-4 rsync
+
+# MariaDB debe estar detenido antes de aplicar la configuración de Galera
+systemctl stop mariadb
+
+# Se crea el archivo de configuración específico de Galera
+# en el directorio recomendado por MariaDB
+cat > /etc/mysql/mariadb.conf.d/60-galera.cnf << 'EOF'
+[mysqld]
+binlog_format=ROW
+default-storage-engine=innodb
+innodb_autoinc_lock_mode=2
+# Permite conexiones remotas
+bind-address=0.0.0.0
+
+# Habilita Galera
+wsrep_on=ON
+# Librería del proveedor Galera
+wsrep_provider=/usr/lib/galera/libgalera_smm.so
+
+# Nombre lógico del clúster
+wsrep_cluster_name="galera_cluster"
+# gcomm:// indica comunicación Galera
+wsrep_cluster_address="gcomm://192.168.90.11,192.168.90.12"
+
+wsrep_sst_method=rsync
+
+# IP del nodo actual
+wsrep_node_address="192.168.90.11"
+# Nombre identificativo del nodo
+wsrep_node_name="db1Antonio"
+EOF
+
+# Arranca el clúster Galera por primera vez
+galera_new_cluster
+
+# Espera para asegurar que MariaDB está completamente operativo
+sleep 10
+
+# Muestra el estado del servicio
+systemctl status mariadb --no-pager
+
+# Se ejecutan comandos SQL directamente contra MariaDB
+mysql << 'EOSQL'
+-- Crear base de datos
+CREATE DATABASE IF NOT EXISTS lamp_db CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+-- Crear usuario para la aplicacion
+CREATE USER IF NOT EXISTS 'antonio'@'%' IDENTIFIED BY '1234567';
+GRANT ALL PRIVILEGES ON lamp_db.* TO 'antonio'@'%';
+
+-- Usuario para  HAProxy 
+CREATE USER IF NOT EXISTS 'haproxy'@'%' IDENTIFIED BY '';
+GRANT USAGE ON *.* TO 'haproxy'@'%';
+
+-- Crear usuario root remoto para administracion
+CREATE USER IF NOT EXISTS 'root'@'%' IDENTIFIED BY 'root';
+GRANT ALL PRIVILEGES ON *.* TO 'root'@'%' WITH GRANT OPTION;
+
+FLUSH PRIVILEGES;
+
+-- Verificar usuarios creados
+SELECT User, Host FROM mysql.user WHERE User IN ('antonio', 'haproxy', 'root');
+EOSQL
+
+# Habilita MariaDB para iniciar automáticamente al arrancar el sistema
+systemctl enable mariadb
+# Muestra el tamaño del clúster Galera
+mysql -e "SHOW STATUS LIKE 'wsrep_cluster_size';" 2>/dev/null
+
+echo "Base de datos 1 configurado correctamente."
+
+```
+### Base de datos 2
+- Funciones principales:
+- Instalación de MariaDB + Galera
+- Configuración como nodo secundario del clúster
+- Unión y sincronización con el nodo primario
+```bash
+#!/bin/bash
+# set -e hace que el script termine inmediatamente si ocurre cualquier error
+set -e
+# Espera inicial para asegurar conectividad de red
+sleep 10
+
+# Configura DNS públicos y suprime la salida estándar
+echo "nameserver 1.1.1.1" | sudo tee /etc/resolv.conf >/dev/null
+echo "nameserver 8.8.8.8" | sudo tee -a /etc/resolv.conf >/dev/null
+
+# Actualiza la lista de paquetes de forma silenciosa
+apt-get update -qq
+
+# Instalación no interactiva de los componentes necesarios: MariaDB Server y Galera
+DEBIAN_FRONTEND=noninteractive apt-get install -y mariadb-server mariadb-client galera-4 rsync
+
+# MariaDB debe estar detenido antes de modificar la configuración
+systemctl stop mariadb
+
+# Se escribe la configuración específica de Galera para db2
+# La mayor parte coincide con db1, excepto la identidad del nodo
+cat > /etc/mysql/mariadb.conf.d/60-galera.cnf << 'EOF'
+[mysqld]
+binlog_format=ROW
+default-storage-engine=innodb
+innodb_autoinc_lock_mode=2
+# Permite conexiones entrantes desde otros nodos y el proxy
+bind-address=0.0.0.0
+
+wsrep_on=ON
+wsrep_provider=/usr/lib/galera/libgalera_smm.so
+
+# Nombre del clúster
+wsrep_cluster_name="galera_cluster"
+# Direcciones de todos los nodos Galera
+wsrep_cluster_address="gcomm://192.168.90.11,192.168.90.12"
+
+wsrep_sst_method=rsync
+
+# IP del nodo secundario
+wsrep_node_address="192.168.90.12"
+# Nombre del nodo secundario
+wsrep_node_name="db2Antonio"
+EOF
+
+# El nodo se conecta al clúster existente e inicia la sincronización
+systemctl start mariadb
+
+
+sleep 10
+
+# Estado del servicio MariaDB
+systemctl status mariadb --no-pager
+
+#Habilitar MariaDB en el inicio
+systemctl enable mariadb
+# Muestra variables clave del estado Galera:
+# - wsrep_cluster_size -> número de nodos del clúster 
+# - wsrep_cluster_status -> estado del clúster 
+# - wsrep_ready -> listo para aceptar escrituras
+# - wsrep_connected -> conectado al clúster
+mysql -e "SHOW STATUS LIKE 'wsrep_%';" | grep -E "(wsrep_cluster_size|wsrep_cluster_status|wsrep_ready|wsrep_connected)"
+echo "Base de datos 2 configurado correctamente."
+```
+### NFS
+- Funciones principales:
+- Configuración de DNS
+- Instalación de NFS Server
+- Instalación y configuración de PHP-FPM
+- Exportación NFS del código de la aplicación web
+- Despliegue automático de una aplicación LAMP de ejemplo
+```bash
+#!/bin/bash
+
+# Espera inicial para asegurar conectividad de red
+sleep 10
+# Configuración de servidores DNS públicos
+echo "nameserver 1.1.1.1" | sudo tee /etc/resolv.conf > /dev/null
+echo "nameserver 8.8.8.8" | sudo tee -a /etc/resolv.conf > /dev/null
+# Actualiza índices de paquetes de forma silenciosa
+apt-get update -qq
+# Instala git para clonar el repositorio de la aplicación
+apt-get install -y git
+
+# Instala el servidor NFS
+apt-get install -y nfs-kernel-server
+
+# Instala PHP-FPM junto con extensiones habituales para aplicaciones LAMP
+apt-get install -y php-fpm php-mysql php-curl php-gd php-mbstring \
+    php-xml php-xmlrpc php-soap php-intl php-zip netcat-openbsd
+
+# Se crea el directorio que contendrá el código PHP
+mkdir -p /var/www/html/webapp
+# Se asigna como propietario al usuario del servidor web (www-data)
+chown -R www-data:www-data /var/www/html/webapp
+# Permisos estándar de lectura/ejecución
+chmod -R 755 /var/www/html/webapp
+
+# Configuración de los recursos NFS exportados
+# Solo los servidores web pueden montar este directorio
+cat > /etc/exports << 'EOF'
+/var/www/html/webapp 192.168.70.11(rw,sync,no_subtree_check,no_root_squash)
+/var/www/html/webapp 192.168.70.12(rw,sync,no_subtree_check,no_root_squash)
+EOF
+# Aplica la configuración de exports
+exportfs -a
+# Reinicia y habilita el servicio NFS
+systemctl restart nfs-kernel-server
+systemctl enable nfs-kernel-server
+
+# Obtiene dinámicamente la versión instalada de PHP
+PHP_VERSION=$(php -r 'echo PHP_MAJOR_VERSION.".".PHP_MINOR_VERSION;')
+# Archivo de configuración del pool principal
+PHP_FPM_CONF="/etc/php/${PHP_VERSION}/fpm/pool.d/www.conf"
+# Cambia PHP-FPM de socket Unix a puerto TCP 9000
+sed -i 's|listen = /run/php/php.*-fpm.sock|listen = 9000|' "$PHP_FPM_CONF"
+# Restringe qué clientes pueden conectarse al PHP-FPM
+sed -i 's|;listen.allowed_clients.*|listen.allowed_clients = 192.168.70.11,192.168.70.12|' "$PHP_FPM_CONF"
+# Reinicia y habilita PHP-FPM
+systemctl restart php${PHP_VERSION}-fpm
+systemctl enable php${PHP_VERSION}-fpm
+# Verifica que PHP-FPM escucha en el puerto 9000
+sleep 10
+netstat -tlnp | grep 9000
+
+# Espera a que el proxy de base de datos  esté disponible
+MAX_ATTEMPTS=60
+ATTEMPT=0
+while [ $ATTEMPT -lt $MAX_ATTEMPTS ]; do
+    if nc -z 192.168.80.10 3306 2>/dev/null; then
+        echo "La Base de datos esta totalmente disponible"
+        break
+    fi
+    ATTEMPT=$((ATTEMPT + 1))
+    sleep 10
+done
+
+# Limpia posibles restos de ejecuciones anteriores
+rm -rf /var/www/html/webapp/*
+rm -rf /tmp/lamp
+# Clona el repositorio de la práctica LAMP
+git clone https://github.com/josejuansanchez/iaw-practica-lamp.git /tmp/lamp
+
+# Copia el código fuente PHP al directorio compartido
+cp -r /tmp/lamp/src/* /var/www/html/webapp/
+
+# Archivo de configuración de conexión a base de datos
+cat > /var/www/html/webapp/config.php << 'EOF'
+<?php
+define('DB_HOST', '192.168.80.10');
+define('DB_NAME', 'lamp_db');
+define('DB_USER', 'lamp_user');
+define('DB_PASS', 'lamp_password');
+
+
+$mysqli = new mysqli(DB_HOST, DB_USER, DB_PASS, DB_NAME);
+
+if ($mysqli->connect_error) {
+    die("Error de conexion: " . $mysqli->connect_error);
+}
+
+$mysqli->set_charset("utf8mb4");
+?>
+EOF
+
+# Script de instalación de base de datos
+cat > /var/www/html/webapp/install.php << 'EOF'
+<?php
+define('DB_HOST', '192.168.80.10');
+define('DB_NAME', 'lamp_db');
+define('DB_USER', 'lamp_user');
+define('DB_PASS', 'lamp_password');
+?>
+EOF
+
+# Archivo de diagnóstico PHP
+cat > /var/www/html/webapp/info.php << 'EOF'
+<?php
+phpinfo();
+?>
+EOF
+
+# Ajusta permisos finales
+chown -R www-data:www-data /var/www/html/webapp
+chmod -R 755 /var/www/html/webapp
+
+# Elimina archivos temporales
+rm -rf /tmp/lamp
+# Lista el contenido final del directorio web
+ls -lh /var/www/html/webapp/
+echo "Configuracion de NFS y PHP-FPM completada."
+
+```
+
+### Proxy
+-Funciones principales:
+- Instalación de HAProxy
+- Configuración como balanceador TCP para MySQL/MariaDB
+- Monitorización básica mediante estadísticas web
+```bash
+#!/bin/bash
+# set -e: el script se detiene si ocurre cualquier error
+set -e
+# Espera inicial para asegurar conectividad de red
+sleep 10
+
+# Configuración de servidores DNS públicos
+echo "nameserver 1.1.1.1" | sudo tee /etc/resolv.conf >/dev/null
+echo "nameserver 8.8.8.8" | sudo tee -a /etc/resolv.conf >/dev/null
+
+# Actualiza los índices de paquetes
+apt-get update -qq
+
+# Instala HAProxy desde los repositorios oficiales
+apt-get install -y haproxy
+
+# Se sobrescribe el archivo principal de configuración de HAProxy
+cat > /etc/haproxy/haproxy.cfg << 'EOF'
+global
+    # Logs del sistema
+    log /dev/log local0
+    log /dev/log local1 notice
+    # Aislamiento del proceso
+    chroot /var/lib/haproxy
+    # Socket de administración
+    stats socket /run/haproxy/admin.sock mode 660 level admin
+    stats timeout 20s
+    # Usuario y grupo de ejecución
+    user haproxy
+    group haproxy
+    daemon
+
+defaults
+    log global
+    mode tcp
+    # Log de conexiones TCP
+    option tcplog
+    option dontlognull
+    timeout connect 10s
+    timeout client 1h
+    timeout server 1h
+
+# Punto de entrada para clientes de base de datos
+# Escucha en el puerto estándar 3306 en todas las interfaces
+frontend mariadb_frontend
+    bind *:3306
+    mode tcp
+    default_backend mariadb_backend
+
+# Definición de los nodos del clúster Galera
+backend mariadb_backend
+    mode tcp
+    balance roundrobin
+    option tcp-check
+    
+    tcp-check connect
+    
+    server db1Antonio 192.168.90.11:3306 check inter 5s rise 2 fall 3
+    server db2Antonio 192.168.90.12:3306 check inter 5s rise 2 fall 3
+
+# Interfaz web de monitorización
+listen stats
+    bind *:8080
+    mode http
+    stats enable
+    stats uri /stats
+    stats refresh 10s
+    # Permite acciones administrativas
+    stats admin if TRUE
+    stats auth admin:admin
+EOF
+
+# Habilita HAProxy para iniciar automáticamente
+systemctl enable haproxy
+
+# Reinicia HAProxy para aplicar la configuración
+systemctl restart haproxy
+
+# Espera breve para asegurar que el servicio esté operativo
+sleep 10
+
+# Muestra el estado del servicio
+systemctl status haproxy --no-pager
+echo "HAProxy configurado correctamente para MariaDB."
+```
+
+### Servidores webs
+-Funciones principales:
+- Configuración de DNS y actualización del sistema
+- Instalación de Nginx y cliente NFS
+- Montaje del directorio web desde el servidor NFS
+- Configuración de Nginx para usar PHP-FPM remoto
+```bash
+#!/bin/bash
+# Espera inicial para asegurar conectividad de red
+sleep 10
+
+# Configura servidores DNS públicos
+echo "nameserver 1.1.1.1" | sudo tee /etc/resolv.conf
+echo "nameserver 8.8.8.8" | sudo tee -a /etc/resolv.conf
+
+# Actualiza los índices de paquetes
+apt-get update -qq
+# Instala Nginx (servidor web) y soporte para NFS
+apt-get install -y nginx nfs-common
+# Cliente MariaDB (útil para pruebas de conexión)
+sudo apt-get install -y mariadb-client
+
+# Crea el punto de montaje local
+mkdir -p /var/www/html/webapp
+
+# Monta el directorio compartido desde el servidor NFS
+# serverNFSAntonio: 192.168.70.10
+mount -t nfs 192.168.70.10:/var/www/html/webapp /var/www/html/webapp
+
+# Hace el montaje persistente tras reinicio del sistema
+echo "192.168.70.10:/var/www/html/webapp /var/www/html/webapp nfs defaults 0 0" >> /etc/fstab
+
+# Se define un nuevo Virtual Host para la aplicación web
+cat > /etc/nginx/sites-available/webapp << 'EOF'
+server {
+    # Escucha en el puerto HTTP estándar
+    listen 80;
+    # Acepta cualquier nombre de host
+    server_name _;
+    # Directorio raíz (montado por NFS)
+    root /var/www/html/webapp;
+    index index.php index.html index.htm;
+
+    # Logs específicos del servidor web
+    access_log /var/log/nginx/access.log;
+    error_log /var/log/nginx/error.log;
+
+    location / {
+        try_files $uri $uri/ /index.php?$args;
+    }
+    # Procesamiento de archivos PHP
+    location ~ \.php$ {
+        include snippets/fastcgi-php.conf;
+        # PHP-FPM remoto (serverNFSAntonio)
+        fastcgi_pass 192.168.70.10:9000;
+        # Ruta completa del script PHP
+        fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
+        include fastcgi_params;
+    }
+    # Seguridad: bloquea acceso a archivos ocultos
+    location ~ /\.ht {
+        deny all;
+    }
+}
+EOF
+
+# Habilita el sitio web
+ln -sf /etc/nginx/sites-available/webapp /etc/nginx/sites-enabled/
+# Elimina el sitio por defecto para evitar conflictos
+rm -f /etc/nginx/sites-enabled/default
+
+# Verifica la configuración de Nginx
+nginx -t
+
+# Reinicia Nginx para aplicar los cambios
+systemctl restart nginx
+# Habilita Nginx al arranque del sistema
+systemctl enable nginx
+echo "Web 1 configurado correctamente."
+```
 ---
-
-
-
 ## Herramientas Empleadas
 - **Virtualización:** VirtualBox  
 - **Gestor de entornos:** Vagrant  
@@ -262,8 +733,54 @@ echo "Balanceador de carga configurado correctamente."
   - NFS
   - HAProxy
   - MariaDB
+---
+## Pruebas
+- Aqui voy a mostrar con fotos las diferentes pruebas que se piden.
+- Mostrar estado de las máquinas: vagrant status.
+  <img width="1730" height="755" alt="Captura de pantalla 2025-12-12 211852" src="https://github.com/user-attachments/assets/7171785d-6695-456e-aaef-0d88deb82c8d" />
+- Ping cada máquina a todas las demás.
+<img width="1646" height="1003" alt="Captura de pantalla 2025-12-12 211912" src="https://github.com/user-attachments/assets/7b4e46c3-fb35-4bac-8024-0be50a080c01" />
+<img width="1412" height="971" alt="Captura de pantalla 2025-12-12 211925" src="https://github.com/user-attachments/assets/583f6bbe-9441-41c1-ad5b-ea1f3b3c8bdc" />
+- Sistemas de archivos montados en los servidores web: df -h en cada servidor web.
+- web1
+<img width="1170" height="265" alt="Captura de pantalla 2025-12-12 211945" src="https://github.com/user-attachments/assets/d33da1a3-c037-4a2e-a7c9-49badd34bfc2" />
+- web2
+<img width="1439" height="429" alt="Captura de pantalla 2025-12-12 212013" src="https://github.com/user-attachments/assets/32106340-4b1a-4381-92d0-d47bfae2672e" />
+- Acceso a servidor MariaDB desde las máquinas serverweb1 y serverweb2.
+- web1
+<img width="1050" height="302" alt="Captura de pantalla 2025-12-12 212044" src="https://github.com/user-attachments/assets/1e07217d-d089-4c56-b1ab-2d97681f0362" />
+- web2
+<img width="1039" height="308" alt="Captura de pantalla 2025-12-12 212113" src="https://github.com/user-attachments/assets/dff1a32d-57e7-4b7d-be5f-7c14859be69f" />
+- Acceso a Wordpress desde la máquina anfitriona (Windows) y el puerto mapeado.
+<img width="1877" height="929" alt="Captura de pantalla 2025-12-12 212305" src="https://github.com/user-attachments/assets/2dabdc1a-c44e-497d-b606-ae7b72387e53" />
+- Mostrar el fichero /var/log/nginx/access.log en el balanceador de carga.
+<img width="1251" height="340" alt="Captura de pantalla 2025-12-13 125428" src="https://github.com/user-attachments/assets/922f6cca-e718-4ef8-bf77-be375dbfb8f3" />
+- Mostrar el fichero /var/log/nginx/access.log en los servidores web.
+- web1
+<img width="1906" height="501" alt="Captura de pantalla 2025-12-12 212028" src="https://github.com/user-attachments/assets/97c4e81f-f151-41db-8228-afa6566a7023" />
+- web2
+<img width="1900" height="500" alt="Captura de pantalla 2025-12-12 212100" src="https://github.com/user-attachments/assets/369b2dbf-d7e8-441b-9016-c7b6a0221370" />
+- Para el servidor web serverweb1 y volver a acceder a wordpress desde la máquina anfitriona.
+<img width="1165" height="90" alt="Captura de pantalla 2025-12-12 212224" src="https://github.com/user-attachments/assets/440be7c7-3e08-45ab-a644-85204ddfdf53" />
+<img width="1877" height="929" alt="Captura de pantalla 2025-12-12 212305" src="https://github.com/user-attachments/assets/b6427e61-9cce-4b28-b411-cd350b681a93" />
+- Mostrar el fichero /var/log/nginx/access.log en los servidores web.
+<img width="1909" height="529" alt="Captura de pantalla 2025-12-12 212252" src="https://github.com/user-attachments/assets/30cb6548-9525-43b6-954c-9b80775c38a2" />
+- Mostrar el contenido de la tabla Usuarios en ambos servidores mariaDB.
+- base de datos 1
+<img width="1304" height="745" alt="Captura de pantalla 2025-12-12 212343" src="https://github.com/user-attachments/assets/94d7acb4-f14d-4389-8e72-db76940f1ef1" />
+- base de datos 2
+<img width="1208" height="807" alt="Captura de pantalla 2025-12-12 212323" src="https://github.com/user-attachments/assets/8d7d29b7-b408-4a10-87ea-9836884878ed" />
 
 ---
 ## Prueba con video
 
 https://drive.google.com/file/d/1IZq_q4hDM3VfVfJbisWcBcYLY7oUZ7Wx/view?usp=drive_link
+
+## Conclusion
+Se ha desplegado con éxito una aplicación web de **Gestión de Usuarios** sobre una infraestructura en **alta disponibilidad de cuatro capas** basada en LEMP.
+
+El **balanceador Nginx** gestiona el tráfico público y reparte la carga entre dos servidores web que utilizan **NFS** y **PHP-FPM** centralizado. La base de datos se encuentra en un clúster **MariaDB** accesible a través de **HAProxy**, garantizando alta disponibilidad y tolerancia a fallos. 
+
+Todas las capas internas están aisladas de la red pública, aumentando la seguridad. El uso de **Vagrant y VirtualBox** con scripts de aprovisionamiento ha permitido automatizar el despliegue y asegurar reproducibilidad.
+
+En conjunto, la infraestructura es **robusta, escalable y modular**, cumpliendo con los objetivos de disponibilidad y eficiencia.
