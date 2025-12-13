@@ -741,35 +741,62 @@ echo "Web 1 configurado correctamente."
 - Ping cada máquina a todas las demás.
 <img width="1646" height="1003" alt="Captura de pantalla 2025-12-12 211912" src="https://github.com/user-attachments/assets/7b4e46c3-fb35-4bac-8024-0be50a080c01" />
 <img width="1412" height="971" alt="Captura de pantalla 2025-12-12 211925" src="https://github.com/user-attachments/assets/583f6bbe-9441-41c1-ad5b-ea1f3b3c8bdc" />
+
 - Sistemas de archivos montados en los servidores web: df -h en cada servidor web.
  
 - Web1
+  
 <img width="1170" height="265" alt="Captura de pantalla 2025-12-12 211945" src="https://github.com/user-attachments/assets/d33da1a3-c037-4a2e-a7c9-49badd34bfc2" />
+
 - Web2
+  
 <img width="1439" height="429" alt="Captura de pantalla 2025-12-12 212013" src="https://github.com/user-attachments/assets/32106340-4b1a-4381-92d0-d47bfae2672e" />
+
 - Acceso a servidor MariaDB desde las máquinas serverweb1 y serverweb2.
+
 - Web1
+  
 <img width="1050" height="302" alt="Captura de pantalla 2025-12-12 212044" src="https://github.com/user-attachments/assets/1e07217d-d089-4c56-b1ab-2d97681f0362" />
+
 - Web2
+  
 <img width="1039" height="308" alt="Captura de pantalla 2025-12-12 212113" src="https://github.com/user-attachments/assets/dff1a32d-57e7-4b7d-be5f-7c14859be69f" />
- - Acceso a Wordpress desde la máquina anfitriona (Windows) y el puerto mapeado.
+
+- Acceso a Wordpress desde la máquina anfitriona (Windows) y el puerto mapeado.
+  
 <img width="1877" height="929" alt="Captura de pantalla 2025-12-12 212305" src="https://github.com/user-attachments/assets/2dabdc1a-c44e-497d-b606-ae7b72387e53" />
+
 - Mostrar el fichero /var/log/nginx/access.log en el balanceador de carga.
+  
 <img width="1251" height="340" alt="Captura de pantalla 2025-12-13 125428" src="https://github.com/user-attachments/assets/922f6cca-e718-4ef8-bf77-be375dbfb8f3" />
+
 - Mostrar el fichero /var/log/nginx/access.log en los servidores web.
+
 - Web1
+  
 <img width="1906" height="501" alt="Captura de pantalla 2025-12-12 212028" src="https://github.com/user-attachments/assets/97c4e81f-f151-41db-8228-afa6566a7023" />
+
 - Web2
+
 <img width="1900" height="500" alt="Captura de pantalla 2025-12-12 212100" src="https://github.com/user-attachments/assets/369b2dbf-d7e8-441b-9016-c7b6a0221370" />
+
 - Para el servidor web serverweb1 y volver a acceder a wordpress desde la máquina anfitriona.
+
 <img width="1165" height="90" alt="Captura de pantalla 2025-12-12 212224" src="https://github.com/user-attachments/assets/440be7c7-3e08-45ab-a644-85204ddfdf53" />
 <img width="1877" height="929" alt="Captura de pantalla 2025-12-12 212305" src="https://github.com/user-attachments/assets/b6427e61-9cce-4b28-b411-cd350b681a93" />
+
 - Mostrar el fichero /var/log/nginx/access.log en los servidores web.
+
 <img width="1909" height="529" alt="Captura de pantalla 2025-12-12 212252" src="https://github.com/user-attachments/assets/30cb6548-9525-43b6-954c-9b80775c38a2" />
+
 - Mostrar el contenido de la tabla Usuarios en ambos servidores mariaDB.
+
 - Base de datos 1
+  
 <img width="1304" height="745" alt="Captura de pantalla 2025-12-12 212343" src="https://github.com/user-attachments/assets/94d7acb4-f14d-4389-8e72-db76940f1ef1" />
+
 - Base de datos 2
+
 <img width="1208" height="807" alt="Captura de pantalla 2025-12-12 212323" src="https://github.com/user-attachments/assets/8d7d29b7-b408-4a10-87ea-9836884878ed" />
 
 ---
