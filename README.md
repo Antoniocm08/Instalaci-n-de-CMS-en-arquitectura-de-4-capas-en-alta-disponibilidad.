@@ -1,6 +1,4 @@
-# Instalaci-n-de-CMS-en-arquitectura-de-4-capas-en-alta-disponibilidad.
-# Despliegue de Aplicación Web “Gestión de Usuarios” en Infraestructura LEMP de Alta Disponibilidad
-
+# Instalacion-de-CMS-en-arquitectura-de-4-capas-en-alta-disponibilidad.
 ## Índice
 1. [Objetivo](#objetivo)
 2. [Estructura de la Infraestructura](#estructura-de-la-infraestructura)
@@ -100,6 +98,7 @@ Implementar una aplicación web denominada **Gestión de Usuarios** sobre una in
   - Creación de usuarios, permisos y carpetas compartidas.
   - Montaje automático de las carpetas NFS en los servidores web.
   - Sincronización entre las máquinas virtuales mediante Vagrant.
+    
 ### Vagrantfile
 ``` bash
 config.vm.define "db1Antonio" do |db1|
@@ -157,12 +156,12 @@ end
 ```
 
 ### Balanceador
-# Funciones principales:
-# - Espera inicial para asegurar conectividad
-# - Configuración manual de DNS
-# - Actualización del sistema
-# - Instalación y configuración de Nginx como balanceador de carga
-# - Activación del servicio al arranque
+- Funciones principales:
+- Espera inicial para asegurar conectividad
+- Configuración manual de DNS
+- Actualización del sistema
+- Instalación y configuración de Nginx como balanceador de carga
+- Activación del servicio al arranque
 
 ```bash
 #!/bin/bash
