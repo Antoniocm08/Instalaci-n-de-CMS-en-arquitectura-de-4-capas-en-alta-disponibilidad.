@@ -37,7 +37,7 @@ Implementar una aplicación web denominada **Gestión de Usuarios** sobre una in
   - Distribuye el tráfico de clientes hacia los servidores web de la capa 2.
 - **Configuración:**
   - Balanceo de carga mediante **round-robin** o similar.
-  - Acceso abierto desde la red pública (puertos HTTP/HTTPS).
+  - Acceso abierto desde la red pública.
 
 ---
 
@@ -51,8 +51,8 @@ Implementar una aplicación web denominada **Gestión de Usuarios** sobre una in
   - **IP** `192.168.70.10`
 - **Funciones:**
   - Servidores web gestionan las peticiones distribuidas desde el balanceador.
-  - Acceso a archivos compartidos por **NFS** desde `serverNFSTuAntonio`.
-  - Procesamiento de código PHP mediante **PHP-FPM** localizado también en `serverNFSTuAntonio`.
+  - Acceso a archivos compartidos por **NFS** desde `serverNFSAntonio`.
+  - Procesamiento de código PHP mediante **PHP-FPM** localizado también en `serverNFSAntonio`.
 - **Notas:**
   - Ninguna máquina de esta capa estará expuesta a red pública.
   - El contenido del CMS se compartirá desde la carpeta NFS.
@@ -64,7 +64,7 @@ Implementar una aplicación web denominada **Gestión de Usuarios** sobre una in
 - **IP** `192.168.80.10`
 - **Servicio:** `HAProxy`
 - **Función:**
-  - Balancear las conexiones entre las aplicaciones web (capa 2) y el servidor de base de datos (capa 4).
+  - Balancear las conexiones entre las aplicaciones web y el servidor de base de datos.
   - Garantizar disponibilidad y distribución de carga en el acceso a datos.
 
 ---
@@ -102,7 +102,7 @@ Implementar una aplicación web denominada **Gestión de Usuarios** sobre una in
 ## Provisionamiento
 - Todo el entorno se desplegará y configurará automáticamente mediante **ficheros de provisionamiento** que dentro de eelos estaran explicados cada linea .
 - El aprovisionamiento incluirá:
-  - Instalación y configuración de servicios (Nginx, MariaDB, PHP-FPM, NFS, HAProxy).
+  - Instalación y configuración de servicios.
   - Creación de usuarios, permisos y carpetas compartidas.
   - Montaje automático de las carpetas NFS en los servidores web.
   - Sincronización entre las máquinas virtuales mediante Vagrant.
