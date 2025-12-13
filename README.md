@@ -8,9 +8,10 @@
    - [Capa 2: BackEnd (Servidores Web + NFS + PHP-FPM)](#capa-2-backend-servidores-web--nfs--php-fpm)
    - [Capa 3: Balanceador de Base de Datos](#capa-3-balanceador-de-base-de-datos)
    - [Capa 4: Base de Datos](#capa-4-base-de-datos)
-3. [Provisionamiento](#provisionamiento)
-4. [Herramientas Empleadas](#herramientas-empleadas)
-5. [Esquema Resumido](#esquema-resumido)
+3. [ Infraestructura visual](#infraestructura-visual)
+4. [Provisionamiento](#provisionamiento)
+5. [Herramientas Empleadas](#herramientas-empleadas)
+6. [Esquema Resumido](#esquema-resumido)
 
 ---
 
@@ -23,6 +24,7 @@ Implementar una aplicación web denominada **Gestión de Usuarios** sobre una in
 
 ### Capa 1: Balanceador de Carga (Pública)
 - **Máquina:** `balanceadorAntonio`
+- **IP** `192.168.50.10`
 - **Servicio:** `Nginx`
 - **Función:** 
   - Actúa como punto de entrada público.
@@ -36,8 +38,11 @@ Implementar una aplicación web denominada **Gestión de Usuarios** sobre una in
 ### Capa 2: BackEnd (Servidores Web + NFS + PHP-FPM)
 - **Máquinas:**
   - `serverweb1Antonio` → servidor web Nginx
+  - **IP** `192.168.70.11`
   - `serverweb2Antonio` → servidor web Nginx
+  - **IP** `192.168.70.12`
   - `serverNFSAntonio` → servidor NFS + motor PHP-FPM
+  - **IP** `192.168.70.10`
 - **Funciones:**
   - Servidores web gestionan las peticiones distribuidas desde el balanceador.
   - Acceso a archivos compartidos por **NFS** desde `serverNFSTuAntonio`.
@@ -50,6 +55,7 @@ Implementar una aplicación web denominada **Gestión de Usuarios** sobre una in
 
 ### Capa 3: Balanceador de Base de Datos
 - **Máquina:** `proxyAntonio`
+- **IP** `192.168.80.10`
 - **Servicio:** `HAProxy`
 - **Función:**
   - Balancear las conexiones entre las aplicaciones web (capa 2) y el servidor de base de datos (capa 4).
@@ -59,6 +65,7 @@ Implementar una aplicación web denominada **Gestión de Usuarios** sobre una in
 
 ### Capa 4: Base de Datos
 - **Máquina:** `BaseDeDatos1Antonio/BaseDeDatos2Antonio`
+- **IP** `192.168.90.11` y `192.168.90.12`
 - **Servicio:** `MariaDB`
 - **Función:**
   - Almacenar toda la información de la aplicación **Gestión de Usuarios**.
@@ -68,7 +75,24 @@ Implementar una aplicación web denominada **Gestión de Usuarios** sobre una in
   - Configuración de usuarios y permisos específicos para el CMS.
 
 ---
+## Infraestructura visual
 
+            [ Cliente ]
+                |
+        [ Balanceador Nginx ]
+                |
+     [ Web1 ]            [ Web2 ]
+        |                   |
+        +------- NFS -------+
+                |
+           [ PHP-FPM ]
+                |
+          [ HAProxy BD ]
+                |
+      [ Galera db1 <-> db2 ]
+
+
+---
 ## Provisionamiento
 - Todo el entorno se desplegará y configurará automáticamente mediante **ficheros de provisionamiento** (por ejemplo, *shell scripts* o *Ansible playbooks*).
 - El aprovisionamiento incluirá:
