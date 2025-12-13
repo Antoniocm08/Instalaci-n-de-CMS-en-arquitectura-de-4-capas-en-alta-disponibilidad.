@@ -166,11 +166,11 @@ end
 
 ### Balanceador
 - Funciones principales:
-- Espera inicial para asegurar conectividad
-- Configuración manual de DNS
-- Actualización del sistema
-- Instalación y configuración de Nginx como balanceador de carga
-- Activación del servicio al arranque
+ - Espera inicial para asegurar conectividad
+ - Configuración manual de DNS
+ - Actualización del sistema
+ - Instalación y configuración de Nginx como balanceador de carga
+ - Activación del servicio al arranque
 
 ```bash
 #!/bin/bash
@@ -259,10 +259,10 @@ echo "Balanceador de carga configurado correctamente."
 ```
 ### Base de datos 1
 - Funciones principales:
-- Configuración básica de red y DNS
-- Instalación de MariaDB + Galera
-- Inicialización del clúster Galera (nodo primario)
-- Creación de base de datos y usuarios
+ - Configuración básica de red y DNS
+ - Instalación de MariaDB + Galera
+ - Inicialización del clúster Galera (nodo primario)
+ - Creación de base de datos y usuarios
   
 ```bash
 #!/bin/bash
@@ -352,9 +352,9 @@ echo "Base de datos 1 configurado correctamente."
 ```
 ### Base de datos 2
 - Funciones principales:
-- Instalación de MariaDB + Galera
-- Configuración como nodo secundario del clúster
-- Unión y sincronización con el nodo primario
+ - Instalación de MariaDB + Galera
+ - Configuración como nodo secundario del clúster
+ - Unión y sincronización con el nodo primario
 ```bash
 #!/bin/bash
 # set -e hace que el script termine inmediatamente si ocurre cualquier error
@@ -422,11 +422,11 @@ echo "Base de datos 2 configurado correctamente."
 ```
 ### NFS
 - Funciones principales:
-- Configuración de DNS
-- Instalación de NFS Server
-- Instalación y configuración de PHP-FPM
-- Exportación NFS del código de la aplicación web
-- Despliegue automático de una aplicación LAMP de ejemplo
+ - Configuración de DNS
+ - Instalación de NFS Server
+ - Instalación y configuración de PHP-FPM
+ - Exportación NFS del código de la aplicación web
+ - Despliegue automático de una aplicación LAMP de ejemplo
 ```bash
 #!/bin/bash
 
@@ -551,10 +551,10 @@ echo "Configuracion de NFS y PHP-FPM completada."
 ```
 
 ### Proxy
--Funciones principales:
-- Instalación de HAProxy
-- Configuración como balanceador TCP para MySQL/MariaDB
-- Monitorización básica mediante estadísticas web
+- Funciones principales:
+ - Instalación de HAProxy
+ - Configuración como balanceador TCP para MySQL/MariaDB
+ - Monitorización básica mediante estadísticas web
 ```bash
 #!/bin/bash
 # set -e: el script se detiene si ocurre cualquier error
